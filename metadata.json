@@ -1,0 +1,8 @@
+{
+  "name": "Portal Guru Wali - UPT SMPN 1 Suppa",
+  "description": "Aplikasi Google Apps Script Web App Pemantauan dan Rekam Jejak Pembinaan Siswa Terpusat UPT SMP Negeri 1 Suppa.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

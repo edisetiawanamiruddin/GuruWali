@@ -1,0 +1,1497 @@
+<script>
+/**
+ * PORTAL GURU WALI — UPT SMP NEGERI 1 SUPPA
+ * Client-Side SPA Controller & State Management
+ * Sesuai PRD.md, DESIGN.md, dan Desain UI/UX Google Stitch
+ */
+
+// ==========================================
+// 1. APP STATE STORE (PRD Bagian 15)
+// ==========================================
+
+const AppState = {
+  token: null,
+  currentUser: null,
+  currentView: 'dashboard',
+  selectedStudentId: null,
+  activeFilters: {
+    kelasId: '',
+    statusSiswa: '',
+    search: '',
+    kategori: ''
+  },
+  data: {
+    dashboard: null,
+    siswaList: [],
+    kelasList: [],
+    guruList: [],
+    kategoriList: [],
+    selectedStudentDetail: null,
+    laporanConfig: null,
+    notifications: []
+  },
+  isServerEnvironment: typeof google !== 'undefined' && google.script && google.script.run
+};
+
+// ==========================================
+// 2. SERVER CALL PROMISE WRAPPER
+// ==========================================
+
+function serverCall(funcName, ...args) {
+  return new Promise((resolve, reject) => {
+    if (AppState.isServerEnvironment) {
+      google.script.run
+        .withSuccessHandler((response) => {
+          if (response && response.success) {
+            resolve(response.data !== undefined ? response.data : response);
+          } else {
+            reject(new Error((response && response.error) || 'Terjadi kesalahan pada server.'));
+          }
+        })
+        .withFailureHandler((err) => {
+          reject(new Error(err.message || err.toString()));
+        })[funcName](...args);
+    } else {
+      // Standalone Browser / AI Studio preview simulator handler
+      mockServerHandler(funcName, args)
+        .then(resolve)
+        .catch(reject);
+    }
+  });
+}
+
+// ==========================================
+// 3. SPA NAVIGATION & VIEW CONTROLLER
+// ==========================================
+
+function navigateTo(viewName, params = {}) {
+  AppState.currentView = viewName;
+  if (params.siswaId) {
+    AppState.selectedStudentId = params.siswaId;
+  }
+
+  // Update Sidebar active item
+  document.querySelectorAll('.nav-item').forEach(el => {
+    if (el.getAttribute('data-view') === viewName) {
+      el.classList.add('active');
+    } else {
+      el.classList.remove('active');
+    }
+  });
+
+  // Update breadcrumb text
+  const breadcrumbTitles = {
+    dashboard: 'Dashboard & Monitoring',
+    siswa: 'Data Siswa Binaan & Kelas',
+    'profil-siswa': 'Profil & Rekam Jejak Siswa',
+    kelas: 'Data Kelas & Rombel',
+    penugasan: 'Penugasan Guru Wali & Walas',
+    pertemuan: 'Pertemuan & Bimbingan Siswa',
+    perkembangan: 'Catatan Perkembangan & Perilaku',
+    laporan: 'Pusat Laporan & Ekspor Dokumen Resmi',
+    berkas: 'Arsip Berkas & Dokumen',
+    pengaturan: 'Pengaturan & Master Data'
+  };
+  const titleEl = document.getElementById('breadcrumb-current');
+  if (titleEl) {
+    titleEl.textContent = breadcrumbTitles[viewName] || 'Portal Guru Wali';
+  }
+
+  // Render View
+  const container = document.getElementById('view-container');
+  if (!container) return;
+
+  container.innerHTML = '<div style="padding: 40px; text-align: center; color: var(--text-muted);">Memuat data...</div>';
+
+  switch (viewName) {
+    case 'dashboard':
+      loadDashboardView();
+      break;
+    case 'siswa':
+      loadSiswaView();
+      break;
+    case 'profil-siswa':
+      loadProfilSiswaView(AppState.selectedStudentId);
+      break;
+    case 'pertemuan':
+      loadPertemuanView();
+      break;
+    case 'perkembangan':
+      loadPerkembanganView();
+      break;
+    case 'laporan':
+      loadLaporanView();
+      break;
+    case 'berkas':
+      loadBerkasView();
+      break;
+    case 'kelas':
+      loadKelasView();
+      break;
+    case 'penugasan':
+      loadPenugasanView();
+      break;
+    case 'pengaturan':
+      loadPengaturanView();
+      break;
+    default:
+      loadDashboardView();
+  }
+}
+
+// ==========================================
+// 4. AUTHENTICATION HANDLERS
+// ==========================================
+
+function handleLoginSubmit(event) {
+  event.preventDefault();
+  const username = document.getElementById('login-username').value.trim();
+  const password = document.getElementById('login-password').value;
+  const btn = document.getElementById('btn-login-submit');
+
+  if (!username || !password) {
+    showToast('Harap masukkan username dan kata sandi.', 'error');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span>Memverifikasi...</span>';
+
+  serverCall('apiLogin', username, password)
+    .then(res => {
+      AppState.token = res.token;
+      AppState.currentUser = res.user;
+
+      // Update UI Header & Sidebar User Info
+      updateUserInfoUI(res.user);
+
+      // Sembunyikan login & tampilkan shell aplikasi
+      document.getElementById('login-container').style.display = 'none';
+      document.getElementById('app-shell').style.display = 'flex';
+
+      showToast('Selamat datang, ' + res.user.namaLengkap, 'success');
+      navigateTo('dashboard');
+    })
+    .catch(err => {
+      showToast(err.message, 'error');
+    })
+    .finally(() => {
+      btn.disabled = false;
+      btn.innerHTML = '<span>Masuk ke Dashboard</span> <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>';
+    });
+}
+
+function quickFillLogin(username, password) {
+  document.getElementById('login-username').value = username;
+  document.getElementById('login-password').value = password;
+  document.getElementById('btn-login-submit').click();
+}
+
+function handleLogout() {
+  if (confirm('Apakah Anda yakin ingin keluar dari sesi aplikasi?')) {
+    serverCall('apiLogout', AppState.token).finally(() => {
+      AppState.token = null;
+      AppState.currentUser = null;
+      document.getElementById('app-shell').style.display = 'none';
+      document.getElementById('login-container').style.display = 'flex';
+      showToast('Anda telah keluar dari aplikasi.', 'info');
+    });
+  }
+}
+
+function updateUserInfoUI(user) {
+  const initials = user.namaLengkap ? user.namaLengkap.split(' ').map(n => n[0]).slice(0, 2).join('') : 'GW';
+  
+  const sbAvatar = document.getElementById('sidebar-avatar');
+  const sbName = document.getElementById('sidebar-user-name');
+  const sbRole = document.getElementById('sidebar-user-role');
+  if (sbAvatar) sbAvatar.textContent = initials;
+  if (sbName) sbName.textContent = user.namaLengkap;
+  if (sbRole) sbRole.textContent = user.role;
+
+  const hdAvatar = document.getElementById('header-avatar');
+  const hdName = document.getElementById('header-user-name');
+  const hdNip = document.getElementById('header-user-nip');
+  if (hdAvatar) hdAvatar.textContent = initials;
+  if (hdName) hdName.textContent = user.namaLengkap;
+  if (hdNip) hdNip.textContent = user.nip ? 'NIP ' + user.nip : user.role;
+}
+
+// ==========================================
+// 5. VIEW RENDERERS (MATCHING STITCH IMAGES)
+// ==========================================
+
+// --- VIEW: DASHBOARD (dashboard.png) ---
+function loadDashboardView() {
+  serverCall('apiGetDashboard', AppState.token)
+    .then(data => {
+      AppState.data.dashboard = data;
+      renderDashboardHTML(data);
+    })
+    .catch(err => {
+      document.getElementById('view-container').innerHTML = '<div class="card" style="color: var(--status-critical);">Gagal memuat dashboard: ' + err.message + '</div>';
+    });
+}
+
+function renderDashboardHTML(d) {
+  const container = document.getElementById('view-container');
+  container.innerHTML = `
+    <!-- Top Action Bar -->
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; flex-wrap: wrap; gap: 16px;">
+      <div>
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+          <span class="badge badge-info" style="font-size: 10px;">• Aktif • Sesi Genap</span>
+          <span style="font-size: 12px; color: var(--text-secondary);">UPT SMP Negeri 1 Suppa</span>
+        </div>
+        <h1 style="font-size: 26px; font-weight: 700; color: var(--text-primary);">Dashboard Pembinaan Guru Wali</h1>
+        <p style="font-size: 13px; color: var(--text-secondary);">Tahun Ajaran 2024/2025 • Semester Genap • Guru Pembina: <strong>${AppState.currentUser ? AppState.currentUser.namaLengkap : 'Drs. H. Ahmad Dahlan, M.Pd'}</strong></p>
+      </div>
+
+      <div style="display: flex; gap: 10px;">
+        <button type="button" class="btn btn-secondary" onclick="openModalCatatPerkembangan()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>+ Rekam Perkembangan</span>
+        </button>
+        <button type="button" class="btn btn-primary" onclick="openModalCatatPertemuan()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>+ Catat Pertemuan Baru</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 4 KPI Cards -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px;">
+      <div class="kpi-card">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span class="kpi-title">Total Siswa Binaan</span>
+          <div style="width: 34px; height: 34px; background: var(--primary-container); color: var(--primary); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+          </div>
+        </div>
+        <div class="kpi-value">${d.totalSiswa || 32} <span style="font-size: 16px; font-weight: 500; color: var(--text-secondary);">Siswa</span></div>
+        <span class="kpi-chip" style="background: var(--secondary-container); color: var(--on-secondary-container);">↗ +2 penugasan baru semester ini</span>
+      </div>
+
+      <div class="kpi-card">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span class="kpi-title">Siswa Perlu Perhatian</span>
+          <div style="width: 34px; height: 34px; background: var(--status-critical-bg); color: var(--status-critical); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </div>
+        </div>
+        <div class="kpi-value" style="color: var(--status-critical);">${d.totalSiswaPerluPerhatian || 4} <span style="font-size: 16px; font-weight: 500; color: var(--text-secondary);">Siswa</span></div>
+        <span class="kpi-chip" style="background: var(--status-critical-bg); color: var(--status-critical-text);">! ${d.kritisCount || 2} Kritis, ${d.pantauCount || 2} Pantauan</span>
+      </div>
+
+      <div class="kpi-card">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span class="kpi-title">Pertemuan Bulan Ini</span>
+          <div style="width: 34px; height: 34px; background: var(--secondary-container); color: var(--secondary); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          </div>
+        </div>
+        <div class="kpi-value">${d.pertemuanBulanIniCount || 18} <span style="font-size: 16px; font-weight: 500; color: var(--text-secondary);">Sesi</span></div>
+        <span class="kpi-chip" style="background: var(--surface-subtle); color: var(--text-secondary);">${d.sesiIndividuCount || 12} Individu • ${d.sesiKelompokCount || 6} Kelompok</span>
+      </div>
+
+      <div class="kpi-card">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span class="kpi-title">Tindak Lanjut Jatuh Tempo</span>
+          <div style="width: 34px; height: 34px; background: var(--status-warning-bg); color: var(--status-warning); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
+        </div>
+        <div class="kpi-value" style="color: var(--status-warning);">${d.tlTertundaCount || 3} <span style="font-size: 16px; font-weight: 500; color: var(--text-secondary);">Tertunda</span></div>
+        <span class="kpi-chip" style="background: var(--status-warning-bg); color: var(--status-warning-text);">⏱ Tenggat: Hari ini & Besok</span>
+      </div>
+    </div>
+
+    <!-- 2-Column Content Grid -->
+    <div style="display: grid; grid-template-columns: 1.35fr 1fr; gap: 24px;">
+      <!-- Left Column: Siswa Perlu Perhatian & Pertemuan -->
+      <div style="display: flex; flex-direction: column; gap: 24px;">
+        <!-- Siswa Perlu Perhatian Segera -->
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: var(--status-critical);"></span>
+              <h3 style="font-size: 16px; font-weight: 600;">Siswa Perlu Perhatian Segera</h3>
+            </div>
+            <a href="#" onclick="navigateTo('siswa'); return false;" style="font-size: 13px; color: var(--primary); text-decoration: none; font-weight: 500;">Lihat Semua (${d.totalSiswaPerluPerhatian || 4}) ›</a>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            ${(d.siswaPerluPerhatian || []).map(s => `
+              <div style="padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: #FFFFFF; display: flex; justify-content: space-between; align-items: center; gap: 14px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <div style="width: 40px; height: 40px; border-radius: 50%; background: ${s.status === 'Kritis' ? '#FEE4E2' : '#E8EFFE'}; color: ${s.status === 'Kritis' ? '#B42318' : '#1D4ED8'}; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 13px; flex-shrink: 0;">
+                    ${s.nama.split(' ').map(n=>n[0]).slice(0,2).join('')}
+                  </div>
+                  <div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <span style="font-weight: 600; font-size: 14px;">${s.nama}</span>
+                      <span class="badge ${s.status === 'Kritis' ? 'badge-critical' : 'badge-warning'}">${s.status}</span>
+                      <span style="font-size: 12px; color: var(--text-secondary);">${s.kelas}</span>
+                    </div>
+                    <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">
+                      <strong>${s.status === 'Kritis' ? 'Kehadiran' : 'Catatan'}:</strong> ${s.catatanKhusus || 'Perlu pembinaan lanjutan'}
+                    </div>
+                  </div>
+                </div>
+
+                <div style="display: flex; gap: 6px; flex-shrink: 0;">
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="hubungiOrtuModal('${s.noHpOrtu || '081244569921'}', '${s.nama}')">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                    <span>Hubungi Ortu</span>
+                  </button>
+                  <button type="button" class="btn btn-primary btn-sm" onclick="navigateTo('profil-siswa', { siswaId: '${s.siswaId}' })">
+                    <span>Lihat Profil</span>
+                  </button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <!-- Jadwal & Riwayat Pertemuan Terbaru -->
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <h3 style="font-size: 16px; font-weight: 600;">Jadwal & Riwayat Pertemuan Terbaru</h3>
+            <a href="#" onclick="navigateTo('pertemuan'); return false;" style="font-size: 13px; color: var(--primary); text-decoration: none;">Kalender Lengkap 📅</a>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            <div style="display: flex; gap: 14px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-md);">
+              <div style="width: 52px; height: 52px; background: var(--surface-subtle); border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0;">
+                <span style="font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">OKT</span>
+                <span style="font-size: 18px; font-weight: 700; color: var(--text-primary); line-height: 1;">19</span>
+              </div>
+              <div style="flex-grow: 1;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-weight: 600; font-size: 14px;">Muhammad Fajar</span>
+                  <span class="badge badge-info">Individu</span>
+                  <span class="badge badge-warning">Menunggu Respon Ortu</span>
+                </div>
+                <div style="font-size: 13px; font-weight: 500; margin-top: 2px;">Klarifikasi dan Komitmen Kehadiran (3 Hari Alpa)</div>
+                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">🕒 09:30 WITA • Ruang Guru Wali</div>
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 14px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-md);">
+              <div style="width: 52px; height: 52px; background: var(--surface-subtle); border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0;">
+                <span style="font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">OKT</span>
+                <span style="font-size: 18px; font-weight: 700; color: var(--text-primary); line-height: 1;">18</span>
+              </div>
+              <div style="flex-grow: 1;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-weight: 600; font-size: 14px;">Kelompok Belajar B-1 (5 Siswa)</span>
+                  <span class="badge badge-success">Kelompok</span>
+                  <span class="badge badge-success">Selesai</span>
+                </div>
+                <div style="font-size: 13px; font-weight: 500; margin-top: 2px;">Bimbingan Motivasi Belajar dan Persiapan Ujian Akhir Semester</div>
+                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">🕒 13:15 WITA • Perpustakaan</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Distribusi Catatan & Audit Log -->
+      <div style="display: flex; flex-direction: column; gap: 24px;">
+        <!-- Distribusi Catatan Donut Representation -->
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <h3 style="font-size: 16px; font-weight: 600;">Distribusi Catatan Pembinaan</h3>
+            <span style="font-size: 12px; background: var(--surface-subtle); padding: 3px 8px; border-radius: 4px; color: var(--text-secondary);">Total: 64 Log</span>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
+              <span style="display: flex; align-items: center; gap: 8px;"><span style="width: 10px; height: 10px; border-radius: 50%; background: #DC2626;"></span> Kehadiran & Absensi</span>
+              <span class="tabular-nums"><strong>35%</strong> (22)</span>
+            </div>
+            <div style="width: 100%; height: 6px; background: var(--surface-subtle); border-radius: 3px; overflow: hidden;"><div style="width: 35%; height: 100%; background: #DC2626;"></div></div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
+              <span style="display: flex; align-items: center; gap: 8px;"><span style="width: 10px; height: 10px; border-radius: 50%; background: #1E4FD8;"></span> Akademik & Tugas</span>
+              <span class="tabular-nums"><strong>25%</strong> (16)</span>
+            </div>
+            <div style="width: 100%; height: 6px; background: var(--surface-subtle); border-radius: 3px; overflow: hidden;"><div style="width: 25%; height: 100%; background: #1E4FD8;"></div></div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
+              <span style="display: flex; align-items: center; gap: 8px;"><span style="width: 10px; height: 10px; border-radius: 50%; background: #D97706;"></span> Kedisiplinan & Perilaku</span>
+              <span class="tabular-nums"><strong>18%</strong> (12)</span>
+            </div>
+            <div style="width: 100%; height: 6px; background: var(--surface-subtle); border-radius: 3px; overflow: hidden;"><div style="width: 18%; height: 100%; background: #D97706;"></div></div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
+              <span style="display: flex; align-items: center; gap: 8px;"><span style="width: 10px; height: 10px; border-radius: 50%; background: #0D9488;"></span> Sosial / Hubungan Teman</span>
+              <span class="tabular-nums"><strong>12%</strong> (8)</span>
+            </div>
+            <div style="width: 100%; height: 6px; background: var(--surface-subtle); border-radius: 3px; overflow: hidden;"><div style="width: 12%; height: 100%; background: #0D9488;"></div></div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
+              <span style="display: flex; align-items: center; gap: 8px;"><span style="width: 10px; height: 10px; border-radius: 50%; background: #16A34A;"></span> Prestasi & Apresiasi</span>
+              <span class="tabular-nums"><strong>10%</strong> (6)</span>
+            </div>
+            <div style="width: 100%; height: 6px; background: var(--surface-subtle); border-radius: 3px; overflow: hidden;"><div style="width: 10%; height: 100%; background: #16A34A;"></div></div>
+          </div>
+        </div>
+
+        <!-- Log Aktivitas Pembinaan & Audit -->
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <h3 style="font-size: 16px; font-weight: 600;">Log Aktivitas & Audit</h3>
+            <span style="font-size: 12px; color: var(--text-muted);">🕒 Real-time</span>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 14px;">
+            <div style="display: flex; gap: 12px; font-size: 13px;">
+              <div style="width: 28px; height: 28px; border-radius: 50%; background: var(--secondary-container); color: var(--secondary); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+              </div>
+              <div>
+                <div style="font-weight: 600;">Unggah Dokumen Surat Pernyataan</div>
+                <div style="color: var(--text-secondary); font-size: 12px;">Berkas fakta integritas orang tua Muhammad Fajar diunggah.</div>
+                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">15m lalu</div>
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 12px; font-size: 13px;">
+              <div style="width: 28px; height: 28px; border-radius: 50%; background: var(--primary-container); color: var(--primary); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <div>
+                <div style="font-weight: 600;">Penyelesaian Sesi Konseling</div>
+                <div style="color: var(--text-secondary); font-size: 12px;">Drs. H. Ahmad Dahlan menyelesaikan bimbingan Siti Nurhaliza.</div>
+                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">2j lalu</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// --- VIEW: DATA SISWA (data siswa.png) ---
+function loadSiswaView() {
+  serverCall('apiGetSiswaList', AppState.token, AppState.activeFilters)
+    .then(data => {
+      AppState.data.siswaList = data;
+      renderSiswaHTML(data);
+    })
+    .catch(err => {
+      document.getElementById('view-container').innerHTML = '<div class="card" style="color: var(--status-critical);">Gagal memuat data siswa: ' + err.message + '</div>';
+    });
+}
+
+function renderSiswaHTML(list) {
+  const container = document.getElementById('view-container');
+  container.innerHTML = `
+    <!-- Header -->
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; flex-wrap: wrap; gap: 16px;">
+      <div>
+        <div style="font-size: 11px; font-weight: 700; color: var(--secondary); text-transform: uppercase; letter-spacing: 0.05em;">MANAJEMEN PERWALIAN AKADEMIK • Semester Genap TA 2024/2025</div>
+        <h1 style="font-size: 24px; font-weight: 700; color: var(--text-primary); margin-top: 2px;">Data Siswa Binaan & Kelas</h1>
+        <p style="font-size: 13px; color: var(--text-secondary);">Daftar lengkap 32 siswa binaan Guru Wali aktif pada Semester Genap 2024/2025</p>
+      </div>
+
+      <div style="display: flex; gap: 10px;">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="openModalImportSiswa()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <span>Import Excel/CSV</span>
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="exportSiswaExcel()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span>Export Rekap</span>
+        </button>
+        <button type="button" class="btn btn-primary btn-sm" onclick="openModalTambahSiswa()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>+ Tambah Siswa Baru</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="card" style="padding: 16px; margin-bottom: 20px;">
+      <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+        <div style="flex: 1; min-width: 260px; position: relative;">
+          <input type="text" id="siswa-search-filter" class="form-input" placeholder="Cari berdasarkan Nama, NIS, atau NISN... (Ctrl K)" value="${AppState.activeFilters.search || ''}" oninput="debounceSiswaSearch(this.value)">
+        </div>
+        <select id="siswa-kelas-filter" class="form-select" style="width: 160px;" onchange="handleSiswaFilterChange()">
+          <option value="">Semua Kelas</option>
+          <option value="KLS_VIII_B" selected>Kelas VIII-B</option>
+          <option value="KLS_VIII_A">Kelas VIII-A</option>
+          <option value="KLS_VIII_C">Kelas VIII-C</option>
+        </select>
+        <select id="siswa-status-filter" class="form-select" style="width: 170px;" onchange="handleSiswaFilterChange()">
+          <option value="">Semua Status</option>
+          <option value="Kritis">Kritis</option>
+          <option value="Perlu Perhatian">Perlu Perhatian</option>
+          <option value="Dalam Pantauan">Dalam Pantauan</option>
+          <option value="Normal">Normal</option>
+          <option value="Prestasi">Prestasi</option>
+        </select>
+      </div>
+
+      <!-- Quick status indicator counter -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-secondary);">
+        <div style="display: flex; gap: 14px; align-items: center;">
+          <span>● <strong>${list.length}</strong> Terdata</span>
+          <span style="color: var(--status-critical);">● <strong>1</strong> Kritis</span>
+          <span style="color: var(--status-warning);">● <strong>4</strong> Perlu Bimbingan</span>
+          <span style="color: var(--status-purple);">● <strong>1</strong> Prestasi Nasional</span>
+        </div>
+        <div>Sinkronisasi Dapodik: 14 menit lalu</div>
+      </div>
+    </div>
+
+    <!-- Main Table -->
+    <div class="table-container">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width: 40px;"><input type="checkbox"></th>
+            <th>Foto & Identitas Murid</th>
+            <th>Kelas / Tingkat</th>
+            <th>Guru Wali & Wali Kelas</th>
+            <th>Status Pembinaan</th>
+            <th>Kontak Darurat / Ortu</th>
+            <th style="text-align: right;">Aksi Tindakan</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${list.map(s => `
+            <tr>
+              <td><input type="checkbox"></td>
+              <td>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <div style="width: 42px; height: 42px; border-radius: 50%; background: #E4ECFF; color: #1E4FD8; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 13px;">
+                    ${s.namaLengkap.split(' ').map(n=>n[0]).slice(0,2).join('')}
+                  </div>
+                  <div>
+                    <div style="font-weight: 600; font-size: 14px;">${s.namaLengkap}</div>
+                    <div style="font-size: 12px; color: var(--text-secondary);">
+                      NIS: <span class="tabular-nums">${s.nis}</span> • NISN: <span class="tabular-nums">${s.nisn}</span>
+                    </div>
+                  </div>
+                </div>
+              </td>
+              <td>
+                <div style="font-weight: 600;">${s.namaKelas}</div>
+                <div style="font-size: 11px; color: var(--text-muted);">Reguler • Smt 4</div>
+              </td>
+              <td>
+                <div style="font-size: 13px; font-weight: 500;">${s.guruWaliNama}</div>
+                <div style="font-size: 11px; color: var(--text-muted);">Walas: ${s.waliKelasNama}</div>
+              </td>
+              <td>
+                <span class="badge ${
+                  s.statusSiswa === 'Kritis' ? 'badge-critical' :
+                  s.statusSiswa === 'Perlu Perhatian' ? 'badge-warning' :
+                  s.statusSiswa === 'Dalam Pantauan' ? 'badge-info' :
+                  s.statusSiswa === 'Prestasi' ? 'badge-purple' : 'badge-success'
+                }">${s.statusSiswa}</span>
+              </td>
+              <td>
+                <div style="font-size: 13px;">${s.kontakNama}</div>
+                <div style="font-size: 11px; color: var(--text-secondary); font-family: monospace;">${s.kontakHp}</div>
+              </td>
+              <td style="text-align: right;">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="navigateTo('profil-siswa', { siswaId: '${s.siswaId}' })">
+                  Lihat Profil
+                </button>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+// --- VIEW: PROFIL SISWA (profil siswa.png) ---
+function loadProfilSiswaView(siswaId) {
+  siswaId = siswaId || 'SIS_001';
+  serverCall('apiGetSiswaDetail', AppState.token, siswaId)
+    .then(res => {
+      AppState.data.selectedStudentDetail = res;
+      renderProfilSiswaHTML(res);
+    })
+    .catch(err => {
+      document.getElementById('view-container').innerHTML = '<div class="card" style="color: var(--status-critical);">Gagal memuat profil: ' + err.message + '</div>';
+    });
+}
+
+function renderProfilSiswaHTML(d) {
+  const s = d.siswa;
+  const container = document.getElementById('view-container');
+  container.innerHTML = `
+    <!-- Header Card -->
+    <div class="card" style="padding: 24px; margin-bottom: 24px;">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 20px;">
+        <div style="display: flex; gap: 20px; align-items: center;">
+          <div style="width: 88px; height: 88px; border-radius: var(--radius-md); background: #1E4FD8; color: white; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: bold; position: relative;">
+            ${s.nama_lengkap.split(' ').map(n=>n[0]).slice(0,2).join('')}
+            <span style="position: absolute; bottom: -6px; right: -6px; background: #0D9488; color: white; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold;">VIII-B</span>
+          </div>
+          <div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <h1 style="font-size: 24px; font-weight: 700;">${s.nama_lengkap}</h1>
+              <span class="badge ${s.status_siswa === 'Kritis' ? 'badge-critical' : 'badge-warning'}">Status: ${s.status_siswa}</span>
+            </div>
+            <div style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">
+              Laki-laki • NIS: <strong class="tabular-nums">${s.nis}</strong> • NISN: <strong class="tabular-nums">${s.nisn}</strong> • Kelas Unggulan VIII-B
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary); margin-top: 6px; display: flex; gap: 16px; flex-wrap: wrap;">
+              <span>👨‍🏫 Guru Wali: <strong>${d.guruWali ? d.guruWali.nama : 'Drs. H. Ahmad Dahlan'}</strong></span>
+              <span>👩‍🏫 Wali Kelas: <strong>${d.waliKelas ? d.waliKelas.nama : 'Nurmiati, S.Pd'}</strong></span>
+              <span>📞 Kontak Ortu: <strong>0812-4456-9921 (Ayah)</strong></span>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="cetakProfilPDF('${s.siswa_id}')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            <span>Cetak Biodata & Rekap PDF</span>
+          </button>
+          <button type="button" class="btn btn-primary btn-sm" onclick="openModalCatatPertemuan('${s.siswa_id}')">
+            <span>+ Catat Pertemuan Baru</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2 Column Layout: Left Tabs & Progression, Right Side Stats & Contacts -->
+    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px;">
+      <!-- Left Column: Tabs & Progression Items -->
+      <div>
+        <div style="display: flex; gap: 8px; border-bottom: 1px solid var(--border); margin-bottom: 20px;">
+          <button type="button" class="btn btn-ghost" style="border-bottom: 2px solid var(--primary); border-radius: 0; color: var(--primary); font-weight: 600;">
+            Catatan Perkembangan (${d.perkembangan.length})
+          </button>
+          <button type="button" class="btn btn-ghost" onclick="showToast('Menampilkan data pertemuan terkait', 'info')">
+            Riwayat Pertemuan (${d.pertemuan.length})
+          </button>
+          <button type="button" class="btn btn-ghost" onclick="showToast('Menampilkan tindak lanjut', 'info')">
+            Tindak Lanjut & Pengingat (${d.tindakLanjut.length})
+          </button>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+          ${d.perkembangan.map(p => `
+            <div class="card" style="border-left: 4px solid ${p.tingkat_perhatian === 'Kritis' ? '#DC2626' : '#1E4FD8'};">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span class="badge ${p.tingkat_perhatian === 'Kritis' ? 'badge-critical' : 'badge-info'}">${p.kategori} • ${p.tanggal}</span>
+                <span class="badge badge-warning">${p.status}</span>
+              </div>
+              <h3 style="font-size: 15px; font-weight: 600; margin-bottom: 6px;">${p.deskripsi}</h3>
+              <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px;">
+                <strong>Tindakan:</strong> ${p.tindakan || '-'}
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--text-muted); border-top: 1px solid var(--border); padding-top: 8px;">
+                <span>Dibuat oleh: ${p.dibuat_oleh || 'Guru Wali'}</span>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="openUpdateTL('${p.perkembangan_id}')">Perbarui Tindak Lanjut</button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <!-- Right Column: Stats Gauge & Family Info -->
+      <div style="display: flex; flex-direction: column; gap: 24px;">
+        <div class="card">
+          <h3 style="font-size: 15px; font-weight: 600; margin-bottom: 14px;">Statistik & Kebugaran Presensi</h3>
+          <div style="text-align: center; margin-bottom: 16px;">
+            <div style="font-size: 32px; font-weight: 700; color: #DC2626;">84.2%</div>
+            <div style="font-size: 12px; color: var(--text-secondary);">Presensi Semester Berjalan</div>
+          </div>
+          <div style="font-size: 12px; color: var(--text-secondary); display: flex; justify-content: space-around; border-top: 1px solid var(--border); padding-top: 12px;">
+            <span>Sakit: <strong>2 hari</strong></span>
+            <span>Izin: <strong>1 hari</strong></span>
+            <span style="color: var(--status-critical);">Alpa: <strong>3 hari</strong></span>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 style="font-size: 15px; font-weight: 600; margin-bottom: 14px;">Keluarga & Kontak Darurat</h3>
+          <div style="font-size: 13px; display: flex; flex-direction: column; gap: 8px;">
+            <div>
+              <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">NAMA AYAH</div>
+              <div style="font-weight: 600;">Bpk. Fathurrahman</div>
+              <div style="font-size: 12px; color: var(--text-secondary);">Pekerjaan: Petani / Wiraswasta</div>
+            </div>
+            <div style="border-top: 1px solid var(--border); padding-top: 8px;">
+              <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">NAMA IBU</div>
+              <div style="font-weight: 600;">Ibu St. Maryam</div>
+            </div>
+            <div style="border-top: 1px solid var(--border); padding-top: 8px;">
+              <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">KONTAK DARURAT (WHATSAPP AKTIF)</div>
+              <div style="font-weight: 600; color: var(--primary);">0812-4456-9921</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// --- VIEW: PERTEMUAN MURID (pertemuan siswa.png) ---
+function loadPertemuanView() {
+  const container = document.getElementById('view-container');
+  container.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; flex-wrap: wrap; gap: 16px;">
+      <div>
+        <div style="font-size: 11px; font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: 0.05em;">MODUL BIMBINGAN & KONSELING TERPADU</div>
+        <h1 style="font-size: 24px; font-weight: 700; color: var(--text-primary); margin-top: 2px;">Pertemuan & Bimbingan Siswa</h1>
+        <p style="font-size: 13px; color: var(--text-secondary);">Pencatatan sesi bimbingan individu (1-on-1) dan konseling kelompok tanpa duplikasi riwayat data siswa.</p>
+      </div>
+
+      <div style="display: flex; gap: 10px;">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="openModalCatatPertemuan(null, 'Individu')">
+          <span>+ Bimbingan Individu Baru</span>
+        </button>
+        <button type="button" class="btn btn-primary btn-sm" onclick="openModalCatatPertemuan(null, 'Kelompok')">
+          <span>+ Pertemuan Kelompok Baru</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Cards Grid -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 20px;">
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <div style="display: flex; gap: 6px;">
+            <span class="badge badge-info">Individu</span>
+            <span class="badge badge-critical">Perlu Tindak Lanjut</span>
+          </div>
+          <span style="font-size: 12px; color: var(--text-muted);">19 Okt 2024, 09:30 WITA</span>
+        </div>
+        <h3 style="font-size: 15px; font-weight: 600; margin-bottom: 4px;">Klarifikasi dan Komitmen Kehadiran Sekolah (Kasus 3 Hari Alpa)</h3>
+        <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 14px;">Peserta: <strong>Muhammad Fajar (VIII-B)</strong> • Ruang Guru Wali</p>
+        <div style="background: var(--surface-subtle); padding: 10px 12px; border-radius: 6px; font-size: 12px; margin-bottom: 14px;">
+          <strong>Kesepakatan:</strong> Siswa menandatangani surat komitmen kehadiran dan pendampingan orang tua.
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border); padding-top: 12px;">
+          <span style="font-size: 12px; color: var(--status-critical); font-weight: 600;">⏱ Follow-up: 24 Okt 2024</span>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="showToast('Rincian pertemuan dibuka', 'info')">Buka Rincian</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <div style="display: flex; gap: 6px;">
+            <span class="badge badge-success">Kelompok (4 Siswa)</span>
+            <span class="badge badge-success">Selesai</span>
+          </div>
+          <span style="font-size: 12px; color: var(--text-muted);">18 Okt 2024, 13:15 WITA</span>
+        </div>
+        <h3 style="font-size: 15px; font-weight: 600; margin-bottom: 4px;">Bimbingan Motivasi Belajar dan Persiapan Ujian Akhir Semester</h3>
+        <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 14px;">Peserta: <strong>Ahmad Fauzan, Dimas Setiawan, M. Rizky, Farhan</strong></p>
+        <div style="background: var(--surface-subtle); padding: 10px 12px; border-radius: 6px; font-size: 12px; margin-bottom: 14px;">
+          <strong>Capaian:</strong> Jadwal belajar mandiri disepakati dengan tutor sebaya.
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border); padding-top: 12px;">
+          <span style="font-size: 12px; color: var(--status-success); font-weight: 600;">✓ Notulensi Tersimpan</span>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="showToast('Mengunduh notulensi', 'info')">Unduh Notulensi</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// --- VIEW: PERKEMBANGAN SISWA (perkembangan siswa.png) ---
+function loadPerkembanganView() {
+  const container = document.getElementById('view-container');
+  container.innerHTML = `
+    <div style="margin-bottom: 20px;">
+      <div style="font-size: 11px; font-weight: 700; color: var(--secondary); text-transform: uppercase; letter-spacing: 0.05em;">MONITORING WALI KELAS • Semester Genap 2024/2025</div>
+      <h1 style="font-size: 24px; font-weight: 700; color: var(--text-primary); margin-top: 2px;">Catatan Perkembangan & Kategori Perilaku Siswa</h1>
+    </div>
+
+    <!-- 5 Category KPI Summary Cards -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 24px;">
+      <div class="kpi-card" style="padding: 16px;">
+        <span style="font-size: 12px; color: var(--text-secondary);">Kehadiran</span>
+        <div style="font-size: 24px; font-weight: 700; color: #DC2626;">14 <span style="font-size: 13px; font-weight: normal; color: var(--text-muted);">Kasus</span></div>
+        <span style="font-size: 11px; color: #B42318;">3 Kritis butuh verifikasi</span>
+      </div>
+      <div class="kpi-card" style="padding: 16px;">
+        <span style="font-size: 12px; color: var(--text-secondary);">Akademik</span>
+        <div style="font-size: 24px; font-weight: 700; color: #1E4FD8;">22 <span style="font-size: 13px; font-weight: normal; color: var(--text-muted);">Catatan</span></div>
+        <span style="font-size: 11px; color: #1D4ED8;">15 Kemajuan, 7 Kendala</span>
+      </div>
+      <div class="kpi-card" style="padding: 16px;">
+        <span style="font-size: 12px; color: var(--text-secondary);">Kedisiplinan</span>
+        <div style="font-size: 24px; font-weight: 700; color: #D97706;">9 <span style="font-size: 13px; font-weight: normal; color: var(--text-muted);">Catatan</span></div>
+        <span style="font-size: 11px; color: #B54708;">Terkontrol tata tertib</span>
+      </div>
+      <div class="kpi-card" style="padding: 16px;">
+        <span style="font-size: 12px; color: var(--text-secondary);">Sosial & Emosional</span>
+        <div style="font-size: 24px; font-weight: 700; color: #0D9488;">6 <span style="font-size: 13px; font-weight: normal; color: var(--text-muted);">Catatan</span></div>
+        <span style="font-size: 11px; color: #0F766E;">Konseling BK kolaboratif</span>
+      </div>
+      <div class="kpi-card" style="padding: 16px;">
+        <span style="font-size: 12px; color: var(--text-secondary);">Prestasi & Bakat</span>
+        <div style="font-size: 24px; font-weight: 700; color: #7C3AED;">11 <span style="font-size: 13px; font-weight: normal; color: var(--text-muted);">Apresiasi</span></div>
+        <span style="font-size: 11px; color: #7C3AED;">Terdata Resmi</span>
+      </div>
+    </div>
+
+    <!-- Form Input Perkembangan & Timeline -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+      <!-- Form Input -->
+      <div class="card">
+        <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 16px;">Input Catatan Perkembangan Baru</h3>
+        <form id="form-perkembangan-baru" onsubmit="handlePerkembanganSubmit(event)">
+          <div class="form-group">
+            <label class="form-label">Siswa Binaan *</label>
+            <select id="prk-siswa-id" class="form-select" required>
+              <option value="SIS_001">Muhammad Fajar (VIII-B)</option>
+              <option value="SIS_002">Siti Nurhaliza (VIII-B)</option>
+              <option value="SIS_003">Andi Tenri Olle (VIII-B)</option>
+            </select>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label class="form-label">Tanggal Kejadian *</label>
+              <input type="date" id="prk-tanggal" class="form-input" required value="${new Date().toISOString().split('T')[0]}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Kategori *</label>
+              <select id="prk-kategori" class="form-select" required>
+                <option value="Kehadiran & Absensi">Kehadiran & Absensi</option>
+                <option value="Akademik & Tugas">Akademik & Tugas</option>
+                <option value="Kedisiplinan & Perilaku">Kedisiplinan & Perilaku</option>
+                <option value="Sosial / Hubungan Teman">Sosial / Hubungan Teman</option>
+                <option value="Prestasi & Apresiasi">Prestasi & Apresiasi</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Tingkat Urgensi / Perhatian</label>
+            <select id="prk-urgensi" class="form-select">
+              <option value="Rendah">Rendah / Normal</option>
+              <option value="Sedang" selected>Sedang / Perhatian</option>
+              <option value="Kritis">Tinggi / Kritis</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Deskripsi Kondisi / Permasalahan *</label>
+            <textarea id="prk-deskripsi" class="form-textarea" placeholder="Ceritakan temuan observasi, fakta di kelas..." required></textarea>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Tindakan Pembinaan yang Dilakukan *</label>
+            <textarea id="prk-tindakan" class="form-textarea" placeholder="Konseling personal, pemanggilan orang tua..." required></textarea>
+          </div>
+
+          <button type="submit" class="btn btn-primary" style="width: 100%;">
+            <span>Simpan Catatan Perkembangan</span>
+          </button>
+        </form>
+      </div>
+
+      <!-- Timeline Preview -->
+      <div class="card">
+        <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 16px;">Log Perkembangan Terkini</h3>
+        <div style="display: flex; flex-direction: column; gap: 14px;">
+          <div style="border-left: 3px solid #DC2626; padding-left: 12px;">
+            <div style="font-size: 12px; color: var(--text-muted);">18 Okt 2024 • Muhammad Fajar</div>
+            <div style="font-weight: 600; font-size: 14px;">Tidak hadir tanpa keterangan 3 hari berturut-turut</div>
+            <div style="font-size: 13px; color: var(--text-secondary);">Tindakan: Panggilan orang tua resmi dan pendampingan Guru BK.</div>
+          </div>
+          <div style="border-left: 3px solid #1E4FD8; padding-left: 12px;">
+            <div style="font-size: 12px; color: var(--text-muted);">05 Okt 2024 • Siti Nurhaliza</div>
+            <div style="font-weight: 600; font-size: 14px;">Penurunan nilai Matematika bab aljabar</div>
+            <div style="font-size: 13px; color: var(--text-secondary);">Tindakan: Pendampingan tutor sebaya.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// --- VIEW: LAPORAN (laporan.png) ---
+function loadLaporanView() {
+  serverCall('apiGetLaporanData', AppState.token, { siswaId: 'SIS_001' })
+    .then(data => {
+      renderLaporanHTML(data);
+    })
+    .catch(err => {
+      document.getElementById('view-container').innerHTML = '<div class="card" style="color: var(--status-critical);">Gagal memuat laporan: ' + err.message + '</div>';
+    });
+}
+
+function renderLaporanHTML(d) {
+  const container = document.getElementById('view-container');
+  container.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; flex-wrap: wrap; gap: 16px;">
+      <div>
+        <div style="font-size: 11px; font-weight: 700; color: var(--secondary); text-transform: uppercase; letter-spacing: 0.05em;">ARSIP & TATA USAHA • GENERASI BERKAS</div>
+        <h1 style="font-size: 24px; font-weight: 700; color: var(--text-primary); margin-top: 2px;">Pusat Laporan & Ekspor Dokumen Resmi</h1>
+        <p style="font-size: 13px; color: var(--text-secondary);">Cetak dokumen resmi pembinaan ber-kop surat UPT SMP Negeri 1 Suppa dalam format PDF atau rekapitulasi data Excel</p>
+      </div>
+
+      <span class="badge badge-success" style="padding: 6px 12px; font-size: 12px;">● Status Penandatanganan: Aktif (3 Otoritas)</span>
+    </div>
+
+    <!-- 2 Column Layout: Left Options & Right Paper Preview -->
+    <div style="display: grid; grid-template-columns: 360px 1fr; gap: 24px;">
+      <!-- Controls -->
+      <div style="display: flex; flex-direction: column; gap: 18px;">
+        <div class="card">
+          <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 12px;">Pilih Format Laporan</h3>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <button type="button" class="btn btn-secondary" style="justify-content: flex-start; background: var(--primary-container); border-color: var(--primary); color: var(--primary);">
+              📄 Laporan Perkembangan per Siswa
+            </button>
+            <button type="button" class="btn btn-secondary" style="justify-content: flex-start;" onclick="showToast('Format dipilih: Riwayat Pertemuan', 'info')">
+              📋 Riwayat Pertemuan per Siswa
+            </button>
+            <button type="button" class="btn btn-secondary" style="justify-content: flex-start;" onclick="showToast('Format dipilih: Rekap per Guru Wali', 'info')">
+              📊 Rekapitulasi per Guru Wali
+            </button>
+            <button type="button" class="btn btn-secondary" style="justify-content: flex-start;" onclick="showToast('Format dipilih: Rekap per Kelas', 'info')">
+              🏫 Rekapitulasi per Kelas
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 12px;">Parameter Cetak</h3>
+          <div class="form-group">
+            <label class="form-label">Tahun Ajaran & Semester</label>
+            <select class="form-select">
+              <option>2024/2025 Genap</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Target Siswa</label>
+            <select class="form-select" onchange="handleTargetSiswaLaporanChange(this.value)">
+              <option value="SIS_001">Muhammad Fajar (21408)</option>
+              <option value="SIS_002">Siti Nurhaliza (23802)</option>
+              <option value="SIS_003">Andi Tenri Olle (23803)</option>
+            </select>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 16px;">
+            <button type="button" class="btn btn-primary" onclick="window.print()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+              <span>Unduh Dokumen PDF Resmi</span>
+            </button>
+            <button type="button" class="btn btn-outline-green" onclick="exportSiswaExcel()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Ekspor Data ke Excel (.xlsx)</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Official A4 Preview with Kop Surat SMPN 1 Suppa -->
+      <div class="report-paper">
+        <div class="kop-surat">
+          <div style="width: 64px; height: 64px; background: #0D3380; color: white; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 20px;">
+            🎓
+          </div>
+          <div class="kop-teks">
+            <h3>${d.kop.instansi}</h3>
+            <h2>${d.kop.dinas}</h2>
+            <h1>${d.kop.sekolah}</h1>
+            <p>${d.kop.alamat}</p>
+            <p>${d.kop.kontak}</p>
+          </div>
+        </div>
+
+        <div class="report-title">LEMBAR LAPORAN PERKEMBANGAN DAN PEMBINAAN SISWA</div>
+        <div class="report-number">Nomor: ${d.nomorSurat}</div>
+
+        <table class="meta-table">
+          <tr>
+            <td style="width: 20%;">Nama Peserta Didik</td>
+            <td style="width: 40%;">: <strong>${d.siswa.nama}</strong></td>
+            <td style="width: 15%;">Kelas / Rombel</td>
+            <td style="width: 25%;">: <strong>${d.siswa.kelas}</strong></td>
+          </tr>
+          <tr>
+            <td>NIS / NISN</td>
+            <td>: ${d.siswa.nis} / ${d.siswa.nisn}</td>
+            <td>Wali Kelas</td>
+            <td>: ${d.waliKelas.nama}</td>
+          </tr>
+          <tr>
+            <td>Guru Wali Pembimbing</td>
+            <td colspan="3">: ${d.guruWali.nama} (NIP ${d.guruWali.nip})</td>
+          </tr>
+        </table>
+
+        <div style="font-weight: bold; font-size: 12px; margin-bottom: 8px;">I. RINGKASAN KEJADIAN & PENANGANAN PEMBINAAN</div>
+        <table class="report-table">
+          <thead>
+            <tr>
+              <th style="width: 5%;">No</th>
+              <th style="width: 15%;">Tanggal</th>
+              <th style="width: 20%;">Kategori Kasus</th>
+              <th style="width: 30%;">Uraian Masalah & Observasi</th>
+              <th style="width: 20%;">Tindakan Pembinaan</th>
+              <th style="width: 10%;">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${d.insidenList.length > 0 ? d.insidenList.map(item => `
+              <tr>
+                <td style="text-align: center;">${item.no}</td>
+                <td>${item.tanggal}</td>
+                <td>${item.kategori}</td>
+                <td>${item.uraian}</td>
+                <td>${item.tindakan}</td>
+                <td style="text-align: center;">${item.status}</td>
+              </tr>
+            `).join('') : `
+              <tr>
+                <td style="text-align: center;">1</td>
+                <td>18 Okt 2024</td>
+                <td>Kehadiran</td>
+                <td>Tidak hadir tanpa keterangan 3 hari berturut-turut</td>
+                <td>Panggilan orang tua resmi & pendampingan Guru BK</td>
+                <td style="text-align: center;">Dalam Proses</td>
+              </tr>
+            `}
+          </tbody>
+        </table>
+
+        <div style="font-weight: bold; font-size: 12px; margin-bottom: 6px;">II. KESIMPULAN REKOMENDASI & TINDAK LANJUT TERPADU</div>
+        <p style="font-size: 11px; margin-bottom: 20px;">
+          1. Menegakkan komitmen kehadiran belajar dan pengawasan kepulangan siswa dari sekolah.<br>
+          2. Kerjasama intensif antara orang tua/wali murid dengan pihak sekolah.<br>
+          3. Evaluasi berkala bimbingan setiap dua minggu bersama Guru Wali pembimbing.
+        </p>
+
+        <!-- 3 Signatures -->
+        <div class="signature-grid">
+          <div class="signature-col">
+            <div>Mengetahui,</div>
+            <div>Orang Tua / Wali Siswa</div>
+            <div class="signature-space"></div>
+            <div class="signature-name">( ............................................ )</div>
+          </div>
+
+          <div class="signature-col">
+            <div>Suppa, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+            <div>Guru Wali Pembimbing,</div>
+            <div class="signature-space"></div>
+            <div class="signature-name">${d.guruWali.nama}</div>
+            <div style="font-size: 10px;">NIP ${d.guruWali.nip}</div>
+          </div>
+
+          <div class="signature-col">
+            <div>Mengetahui,</div>
+            <div>Kepala UPT SMPN 1 Suppa</div>
+            <div class="signature-space"></div>
+            <div class="signature-name">${d.kepalaSekolah.nama}</div>
+            <div style="font-size: 10px;">NIP ${d.kepalaSekolah.nip}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// --- VIEW: PENGATURAN (pengaturan.png) ---
+function loadPengaturanView() {
+  serverCall('apiGetPengaturanData', AppState.token)
+    .then(data => {
+      renderPengaturanHTML(data);
+    })
+    .catch(err => {
+      document.getElementById('view-container').innerHTML = '<div class="card" style="color: var(--status-critical);">Gagal memuat pengaturan: ' + err.message + '</div>';
+    });
+}
+
+function renderPengaturanHTML(d) {
+  const container = document.getElementById('view-container');
+  container.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; flex-wrap: wrap; gap: 16px;">
+      <div>
+        <div style="font-size: 11px; font-weight: 700; color: var(--primary); text-transform: uppercase;">Akses Tingkat: Administrator Sistem</div>
+        <h1 style="font-size: 24px; font-weight: 700; color: var(--text-primary); margin-top: 2px;">Pengaturan & Konfigurasi Master Data</h1>
+        <p style="font-size: 13px; color: var(--text-secondary);">Kelola pengguna aplikasi, master guru, tahun ajaran, dan status penyimpanan Google Drive</p>
+      </div>
+
+      <div style="display: flex; gap: 10px;">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="showToast('Log audit sistem dibuka', 'info')">
+          <span>Log Audit</span>
+        </button>
+        <button type="button" class="btn btn-primary btn-sm" onclick="testTriggerSync()">
+          <span>Sinkronisasi GAS</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Storage & Trigger Status Cards -->
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px;">
+      <div class="card">
+        <div style="font-size: 12px; color: var(--text-secondary); font-weight: 600;">GOOGLE DRIVE (BERKAS SISWA)</div>
+        <div style="font-size: 24px; font-weight: 700; margin: 6px 0;">${d.storage.driveUsed} <span style="font-size: 13px; color: var(--text-muted);">/ ${d.storage.driveTotal}</span></div>
+        <div style="font-size: 12px; color: var(--status-success);">✓ Status Optimal (Tersisa 13.8 GB)</div>
+      </div>
+
+      <div class="card">
+        <div style="font-size: 12px; color: var(--text-secondary); font-weight: 600;">DATABASE SHEETS (BARIS AKTIF)</div>
+        <div style="font-size: 24px; font-weight: 700; margin: 6px 0;">${d.storage.totalRows || 4210} <span style="font-size: 13px; color: var(--text-muted);">/ 10,000</span></div>
+        <div style="font-size: 12px; color: var(--primary);">Kinerja baca/tulis normal</div>
+      </div>
+
+      <div class="card">
+        <div style="font-size: 12px; color: var(--text-secondary); font-weight: 600;">TRIGGER CRON OTOMATIS</div>
+        <div style="font-size: 20px; font-weight: 700; margin: 6px 0; color: var(--secondary);">06:00 WITA</div>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="testTriggerSync()">Uji Trigger Sekarang</button>
+      </div>
+    </div>
+
+    <!-- User Accounts Table -->
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 style="font-size: 16px; font-weight: 600;">Manajemen Akun Pengguna</h3>
+        <button type="button" class="btn btn-primary btn-sm" onclick="showToast('Form tambah pengguna dibuka', 'info')">+ Tambah Akun</button>
+      </div>
+
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Pengguna & Akun</th>
+            <th>Nama Lengkap & NIP</th>
+            <th>Hak Akses / Peran</th>
+            <th>Status</th>
+            <th>Terakhir Login</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${d.users.map(u => `
+            <tr>
+              <td><strong>${u.username}</strong></td>
+              <td>${u.namaLengkap} <br><span style="font-size: 11px; color: var(--text-muted);">${u.nip}</span></td>
+              <td><span class="badge badge-info">${u.role}</span></td>
+              <td><span class="badge badge-success">${u.status}</span></td>
+              <td style="font-size: 12px; color: var(--text-secondary);">${u.lastLogin}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+// Placeholder simple views for Berkas, Kelas, and Penugasan
+function loadBerkasView() {
+  document.getElementById('view-container').innerHTML = `
+    <div class="card">
+      <h2 style="font-size: 20px; font-weight: bold; margin-bottom: 12px;">Arsip Berkas & Dokumen Terpusat</h2>
+      <p style="font-size: 14px; color: var(--text-secondary); margin-bottom: 16px;">Seluruh dokumen, surat pernyataan ortu, berita acara bimbingan, dan sertifikat prestasi tersimpan aman di Google Drive sekolah.</p>
+      <button class="btn btn-primary btn-sm" onclick="showToast('Pilih dokumen PDF/JPG untuk diunggah', 'info')">+ Unggah Berkas Baru</button>
+    </div>
+  `;
+}
+
+function loadKelasView() {
+  document.getElementById('view-container').innerHTML = `
+    <div class="card">
+      <h2 style="font-size: 20px; font-weight: bold; margin-bottom: 12px;">Data Rombel & Kelas Siswa</h2>
+      <p style="font-size: 14px; color: var(--text-secondary);">Kelas VII, VIII, dan IX Tahun Ajaran 2024/2025 Genap UPT SMPN 1 Suppa.</p>
+    </div>
+  `;
+}
+
+function loadPenugasanView() {
+  document.getElementById('view-container').innerHTML = `
+    <div class="card">
+      <h2 style="font-size: 20px; font-weight: bold; margin-bottom: 12px;">Penugasan Guru Wali & Wali Kelas</h2>
+      <p style="font-size: 14px; color: var(--text-secondary);">Distribusi siswa binaan per Guru Wali dan penetapan SK Walas per semester.</p>
+    </div>
+  `;
+}
+
+// ==========================================
+// 6. MODALS & FORMS HANDLERS
+// ==========================================
+
+function openModalCatatPertemuan(siswaId = null, defaultTipe = 'Individu') {
+  const modalContainer = document.getElementById('modal-container');
+  modalContainer.innerHTML = `
+    <div class="modal-overlay" onclick="closeModal(event)">
+      <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+          <h3 style="font-size: 16px; font-weight: 700;">Catat Pertemuan & Bimbingan Baru</h3>
+          <button type="button" onclick="closeModal()" style="background: none; border: none; font-size: 18px; cursor: pointer;">✕</button>
+        </div>
+        <form id="form-pertemuan" onsubmit="handleSavePertemuan(event)">
+          <div class="modal-body">
+            <div class="form-group">
+              <label class="form-label">Tipe Sesi Bimbingan *</label>
+              <select id="ptm-tipe" class="form-select" onchange="togglePertemuanPesertaTipe(this.value)">
+                <option value="Individu" ${defaultTipe === 'Individu' ? 'selected' : ''}>Individu (1 Guru Wali - 1 Siswa)</option>
+                <option value="Kelompok" ${defaultTipe === 'Kelompok' ? 'selected' : ''}>Kelompok (1 Guru Wali - Banyak Siswa)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Pilih Siswa Peserta *</label>
+              <select id="ptm-siswa" class="form-select" required>
+                <option value="SIS_001" ${siswaId === 'SIS_001' ? 'selected' : ''}>Muhammad Fajar (VIII-B)</option>
+                <option value="SIS_002" ${siswaId === 'SIS_002' ? 'selected' : ''}>Siti Nurhaliza (VIII-B)</option>
+                <option value="SIS_003" ${siswaId === 'SIS_003' ? 'selected' : ''}>Andi Tenri Olle (VIII-B)</option>
+                <option value="SIS_004">Muhammad Ilham (VIII-B)</option>
+              </select>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div class="form-group">
+                <label class="form-label">Tanggal Pelaksanaan *</label>
+                <input type="date" id="ptm-tanggal" class="form-input" required value="${new Date().toISOString().split('T')[0]}">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Lokasi Pertemuan</label>
+                <input type="text" id="ptm-lokasi" class="form-input" value="Ruang Guru Wali">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Topik Pembahasan *</label>
+              <input type="text" id="ptm-topik" class="form-input" placeholder="Contoh: Evaluasi Kehadiran & Kesepakatan Belajar" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Ringkasan Pembahasan & Masalah</label>
+              <textarea id="ptm-pembahasan" class="form-textarea" placeholder="Poin-poin penting hasil dialog..."></textarea>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Kesepakatan & Rencana Tindak Lanjut</label>
+              <textarea id="ptm-kesepakatan" class="form-textarea" placeholder="Komitmen siswa dan langkah pembimbingan..."></textarea>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Jadwal Tindak Lanjut Berikutnya (Opsional)</label>
+              <input type="date" id="ptm-tanggal-tl" class="form-input">
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-ghost" onclick="closeModal()">Batal</button>
+            <button type="submit" class="btn btn-primary">Simpan Pertemuan</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
+function handleSavePertemuan(e) {
+  e.preventDefault();
+  const tipe = document.getElementById('ptm-tipe').value;
+  const siswaId = document.getElementById('ptm-siswa').value;
+  const tanggal = document.getElementById('ptm-tanggal').value;
+  const lokasi = document.getElementById('ptm-lokasi').value;
+  const topik = document.getElementById('ptm-topik').value;
+  const pembahasan = document.getElementById('ptm-pembahasan').value;
+  const kesepakatan = document.getElementById('ptm-kesepakatan').value;
+  const tanggalTL = document.getElementById('ptm-tanggal-tl').value;
+
+  serverCall('apiSavePertemuan', AppState.token, {
+    tipe: tipe,
+    siswaIds: [siswaId],
+    tanggal: tanggal,
+    lokasi: lokasi,
+    topik: topik,
+    pembahasan: pembahasan,
+    kesepakatan: kesepakatan,
+    tanggal_tl_berikutnya: tanggalTL
+  }).then(res => {
+    showToast('Pertemuan berhasil dicatat dan masuk riwayat siswa.', 'success');
+    closeModal();
+    if (AppState.currentView === 'pertemuan') loadPertemuanView();
+    if (AppState.currentView === 'dashboard') loadDashboardView();
+  }).catch(err => {
+    showToast(err.message, 'error');
+  });
+}
+
+function closeModal() {
+  document.getElementById('modal-container').innerHTML = '';
+}
+
+function showToast(message, type = 'info') {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+
+  const toast = document.createElement('div');
+  const bg = type === 'success' ? '#16A34A' : type === 'error' ? '#DC2626' : '#1E4FD8';
+  toast.style.cssText = `background: ${bg}; color: white; padding: 10px 18px; border-radius: 8px; font-size: 13px; font-weight: 500; box-shadow: 0 4px 12px rgba(0,0,0,0.15); display: flex; align-items: center; gap: 8px; animation: fadeIn 0.2s ease;`;
+  toast.innerHTML = `<span>${message}</span>`;
+  container.appendChild(toast);
+
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    setTimeout(() => toast.remove(), 200);
+  }, 3500);
+}
+
+function debounceSiswaSearch(val) {
+  clearTimeout(window._searchTimer);
+  window._searchTimer = setTimeout(() => {
+    AppState.activeFilters.search = val;
+    loadSiswaView();
+  }, 250);
+}
+
+function handleSiswaFilterChange() {
+  const kls = document.getElementById('siswa-kelas-filter').value;
+  const st = document.getElementById('siswa-status-filter').value;
+  AppState.activeFilters.kelasId = kls;
+  AppState.activeFilters.statusSiswa = st;
+  loadSiswaView();
+}
+
+function hubungiOrtuModal(noHp, nama) {
+  const cleanPhone = noHp.replace(/\D/g, '');
+  const waUrl = 'https://wa.me/62' + cleanPhone.replace(/^0/, '') + '?text=' + encodeURIComponent('Assalamu Alaikum Warahmatullahi Wabarakatuh, Yth. Orang Tua dari ' + nama + ' (UPT SMPN 1 Suppa). Kami dari Guru Wali ingin menyampaikan informasi perkembangan bimbingan.');
+  window.open(waUrl, '_blank');
+}
+
+function exportSiswaExcel() {
+  showToast('Mengekspor data ke Excel...', 'info');
+  // Trigger CSV download
+  const csvContent = "data:text/csv;charset=utf-8,NIS,NISN,Nama Siswa,Kelas,Status,Guru Wali\n23801,0098421092,Muhammad Fajar,VIII-B,Kritis,Drs. H. Ahmad Dahlan\n23802,0098451312,Siti Nurhaliza,VIII-B,Perlu Perhatian,Drs. H. Ahmad Dahlan\n23803,0098451405,Andi Tenri Olle,VIII-B,Prestasi,Drs. H. Ahmad Dahlan";
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement("a");
+  link.setAttribute("href", encodedUri);
+  link.setAttribute("download", "Rekap_Siswa_UPT_SMPN_1_Suppa.csv");
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  showToast('File Excel/CSV berhasil diunduh.', 'success');
+}
+
+function testTriggerSync() {
+  showToast('Menjalankan sinkronisasi trigger GAS...', 'info');
+  setTimeout(() => {
+    showToast('Sinkronisasi trigger sukses: 3 pengingat terverifikasi.', 'success');
+  }, 1000);
+}
+
+function toggleNotificationDrawer() {
+  showToast('3 Notifikasi: 1 Siswa alpa 3 hari, 1 Jadwal konseling, 1 Tindak lanjut jatuh tempo.', 'info');
+}
+
+function togglePasswordVisibility(inputId) {
+  const input = document.getElementById(inputId);
+  if (input) {
+    input.type = input.type === 'password' ? 'text' : 'password';
+  }
+}
+
+function showForgotPasswordAlert() {
+  alert('Silakan hubungi Administrator Kurikulum UPT SMP Negeri 1 Suppa untuk mereset kata sandi GTK Anda.');
+}
+
+// ==========================================
+// 7. MOCK HANDLER FOR PREVIEW RUNTIMES
+// ==========================================
+
+function mockServerHandler(funcName, args) {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      if (funcName === 'apiLogin') {
+        const username = args[0];
+        const role = username.includes('admin') ? 'Admin' : username.includes('walas') || username.includes('nurmiati') ? 'Wali Kelas' : username.includes('kepsek') ? 'Kepala Sekolah' : 'Guru Wali';
+        const nama = role === 'Guru Wali' ? 'Drs. H. Ahmad Dahlan, M.Pd' : role === 'Wali Kelas' ? 'Nurmiati, S.Pd' : role === 'Kepala Sekolah' ? 'Drs. H. Syamsuddin, M.Si' : 'Tim Pengembang Kurikulum';
+        resolve({
+          token: 'mock-session-token-' + Date.now(),
+          user: {
+            userId: 'USR_01',
+            username: username,
+            role: role,
+            guruId: 'G_02',
+            namaLengkap: nama,
+            nip: '197805122005011004'
+          }
+        });
+      } else if (funcName === 'apiGetDashboard') {
+        resolve({
+          totalSiswa: 32,
+          kritisCount: 2,
+          pantauCount: 2,
+          totalSiswaPerluPerhatian: 4,
+          pertemuanBulanIniCount: 18,
+          sesiIndividuCount: 12,
+          sesiKelompokCount: 6,
+          tlTertundaCount: 3,
+          siswaPerluPerhatian: [
+            { siswaId: 'SIS_001', nama: 'Muhammad Fajar', kelas: 'Kelas VIII-B', status: 'Kritis', catatanKhusus: '3 Hari Alpa berturut-turut tanpa kabar', noHpOrtu: '081244569921' },
+            { siswaId: 'SIS_002', nama: 'Siti Nurhaliza', kelas: 'Kelas VIII-B', status: 'Perlu Perhatian', catatanKhusus: 'Penurunan nilai Matematika (-28 poin)', noHpOrtu: '085299014432' },
+            { siswaId: 'SIS_003', nama: 'Reza Pratama', kelas: 'Kelas VIII-C', status: 'Dalam Pantauan', catatanKhusus: 'Konflik pertemanan antar kelas', noHpOrtu: '081388901120' },
+            { siswaId: 'SIS_004', nama: 'Putri Anggraini', kelas: 'Kelas VIII-B', status: 'Dalam Pantauan', catatanKhusus: 'Keluhan sakit berulang 4x ke UKS', noHpOrtu: '085341228800' }
+          ]
+        });
+      } else if (funcName === 'apiGetSiswaList') {
+        resolve([
+          { siswaId: 'SIS_001', nis: '23801', nisn: '0098421092', namaLengkap: 'Muhammad Fajar', namaKelas: 'VIII-B', statusSiswa: 'Kritis', guruWaliNama: 'Drs. H. Ahmad Dahlan', waliKelasNama: 'Nurmiati, S.Pd', kontakNama: 'Bpk. Fathurrahman (Ayah)', kontakHp: '0812-4456-9921' },
+          { siswaId: 'SIS_002', nis: '23802', nisn: '0098451312', namaLengkap: 'Siti Nurhaliza', namaKelas: 'VIII-B', statusSiswa: 'Perlu Perhatian', guruWaliNama: 'Drs. H. Ahmad Dahlan', waliKelasNama: 'Nurmiati, S.Pd', kontakNama: 'Faridah (Ibu)', kontakHp: '0852-9901-4432' },
+          { siswaId: 'SIS_003', nis: '23803', nisn: '0098451405', namaLengkap: 'Andi Tenri Olle', namaKelas: 'VIII-B', statusSiswa: 'Prestasi', guruWaliNama: 'Drs. H. Ahmad Dahlan', waliKelasNama: 'Nurmiati, S.Pd', kontakNama: 'Andi Bau Massepe', kontakHp: '0813-8890-1120' },
+          { siswaId: 'SIS_004', nis: '23804', nisn: '0098451488', namaLengkap: 'Muhammad Ilham', namaKelas: 'VIII-B', statusSiswa: 'Normal', guruWaliNama: 'Drs. H. Ahmad Dahlan', waliKelasNama: 'Nurmiati, S.Pd', kontakNama: 'Sulaiman (Ayah)', kontakHp: '0821-5541-0087' },
+          { siswaId: 'SIS_005', nis: '23805', nisn: '0098451519', namaLengkap: 'Dewi Sartika', namaKelas: 'VIII-B', statusSiswa: 'Dalam Pantauan', guruWaliNama: 'Drs. H. Ahmad Dahlan', waliKelasNama: 'Nurmiati, S.Pd', kontakNama: 'Kartini (Ibu)', kontakHp: '0819-7712-3349' },
+          { siswaId: 'SIS_006', nis: '23806', nisn: '0098451630', namaLengkap: 'Fadhil Ramadhan', namaKelas: 'VIII-B', statusSiswa: 'Normal', guruWaliNama: 'Drs. H. Ahmad Dahlan', waliKelasNama: 'Nurmiati, S.Pd', kontakNama: 'Irwan Syah (Ayah)', kontakHp: '0811-2098-7612' },
+          { siswaId: 'SIS_007', nis: '23807', nisn: '0098451701', namaLengkap: 'Putri Anggraini', namaKelas: 'VIII-B', statusSiswa: 'Perlu Perhatian', guruWaliNama: 'Drs. H. Ahmad Dahlan', waliKelasNama: 'Nurmiati, S.Pd', kontakNama: 'Hj. Maryam (Ibu)', kontakHp: '0853-4122-8800' }
+        ]);
+      } else if (funcName === 'apiGetSiswaDetail') {
+        resolve({
+          siswa: { siswa_id: 'SIS_001', nis: '21408', nisn: '0098421092', nama_lengkap: 'Muhammad Fajar', status_siswa: 'Kritis' },
+          guruWali: { nama: 'Drs. H. Ahmad Dahlan, M.Pd', nip: '197805122005011004' },
+          waliKelas: { nama: 'Nurmiati, S.Pd', nip: '198402162010012018' },
+          perkembangan: [
+            { perkembangan_id: 'PRK_01', tanggal: '18 Okt 2024', kategori: 'Kehadiran & Disiplin', deskripsi: 'Tidak hadir tanpa keterangan 3 hari berturut-turut setelah ujian tengah semester.', tindakan: 'Panggilan ortu resmi & konseling intensif.', tingkat_perhatian: 'Kritis', status: 'Dalam Penanganan' },
+            { perkembangan_id: 'PRK_02', tanggal: '05 Okt 2024', kategori: 'Akademik', deskripsi: 'Peningkatan motivasi pada mata pelajaran Bahasa Inggris.', tindakan: 'Pendampingan tutor sebaya.', tingkat_perhatian: 'Sedang', status: 'Tuntas' }
+          ],
+          pertemuan: [],
+          tindakLanjut: []
+        });
+      } else if (funcName === 'apiGetLaporanData') {
+        resolve({
+          kop: {
+            instansi: 'PEMERINTAH KABUPATEN PINRANG',
+            dinas: 'DINAS PENDIDIKAN DAN KEBUDAYAAN',
+            sekolah: 'UPT SMP NEGERI 1 SUPPA',
+            alamat: 'Jl. Andi Dewang No. 12, Majennang, Kec. Suppa, Kab. Pinrang, Sulawesi Selatan 91272',
+            kontak: 'Laman: smpn1suppa.sch.id • Pos-el: surat@smpn1suppa.sch.id • Akreditasi A'
+          },
+          nomorSurat: '421.3 / 184 / UPT.SMP.01 / DISDIK / X / 2024',
+          siswa: { nama: 'Muhammad Fajar', nis: '21408', nisn: '0098234112', kelas: 'VIII-B' },
+          guruWali: { nama: 'Drs. H. Ahmad Dahlan, M.Pd', nip: '197805122005011004' },
+          waliKelas: { nama: 'Nurmiati, S.Pd', nip: '198402162010012018' },
+          kepalaSekolah: { nama: 'Drs. H. Syamsuddin, M.Si', nip: '196803121994121002' },
+          insidenList: [
+            { no: 1, tanggal: '18 Okt 2024', kategori: 'Kehadiran', uraian: 'Tidak hadir 3 hari berturut-turut', tindakan: 'Panggilan orang tua & konseling', status: 'Dalam Proses' },
+            { no: 2, tanggal: '04 Sep 2024', kategori: 'Akademik', uraian: 'Penurunan ketuntasan tugas mandiri IPA', tindakan: 'Pendampingan tutor sebaya', status: 'Selesai' }
+          ]
+        });
+      } else if (funcName === 'apiGetPengaturanData') {
+        resolve({
+          users: [
+            { username: 'ahmad.dahlan', namaLengkap: 'Drs. H. Ahmad Dahlan, M.Pd', nip: '197805122005011004', role: 'Guru Wali', status: 'Aktif', lastLogin: 'Hari Ini, 07:15 WITA' },
+            { username: 'nurmiati.spd', namaLengkap: 'Nurmiati, S.Pd', nip: '198402162010012018', role: 'Wali Kelas', status: 'Aktif', lastLogin: 'Kemarin, 14:20 WITA' },
+            { username: 'admin.kurikulum', namaLengkap: 'Tim Pengembang Kurikulum', nip: '-', role: 'Administrator', status: 'Aktif', lastLogin: 'Hari Ini, 08:02 WITA' },
+            { username: 'syamsuddin.kepsek', namaLengkap: 'Drs. H. Syamsuddin, M.Si', nip: '196803121994121002', role: 'Kepala Sekolah', status: 'Aktif', lastLogin: '3 Mar 2025' }
+          ],
+          storage: { driveUsed: '1.2 GB', driveTotal: '15.0 GB', totalRows: 4210 }
+        });
+      } else {
+        resolve({ success: true });
+      }
+    }, 150);
+  });
+}
+</script>

@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portal Guru Wali — UPT SMP Negeri 1 Suppa</title>
+  <!-- Google Fonts: Poppins (Heading) & Inter (Body/Data) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Embedded Stylesheet -->
+  <?!= include('Stylesheet'); ?>
+</head>
+<body>
+
+  <!-- ========================================================
+       1. LOGIN VIEW (SPLIT-SCREEN SESUAI GAMBAR STITCH)
+       ======================================================== -->
+  <div id="login-container" style="display: flex; min-height: 100vh; width: 100%;">
+    <!-- Left Hero Panel (Desktop) -->
+    <div class="login-left-panel" style="flex: 1.1; background: linear-gradient(145deg, #092C78 0%, #1E4FD8 100%); color: #FFFFFF; padding: 48px; display: flex; flex-direction: column; justify-content: space-between;">
+      <div>
+        <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 28px;">
+          <div style="width: 48px; height: 48px; background: rgba(255,255,255,0.15); border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+          </div>
+          <div>
+            <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #6EE7B7;">KABUPATEN PINRANG • NPSN: 40304859</div>
+            <div style="font-size: 15px; font-weight: 600;">UPT SMP NEGERI 1 SUPPA</div>
+          </div>
+        </div>
+
+        <h1 style="font-size: 32px; font-weight: 700; line-height: 1.25; margin-bottom: 16px;">Portal Guru Wali — Rekam Jejak & Pembinaan Siswa Terpusat</h1>
+        <p style="font-size: 15px; color: rgba(234, 240, 255, 0.85); margin-bottom: 36px; max-width: 520px;">Platform integrasi pembinaan holistik, catatan perkembangan perilaku, monitoring tindak lanjut, dan rekapitulasi data konseling siswa terintegrasi.</p>
+
+        <!-- 3 Feature Highlights -->
+        <div style="display: flex; flex-direction: column; gap: 14px; max-width: 500px;">
+          <div style="background: rgba(255, 255, 255, 0.09); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px; padding: 14px 18px; display: flex; gap: 14px;">
+            <div style="color: #60A5FA; flex-shrink: 0;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></div>
+            <div>
+              <div style="font-weight: 600; font-size: 14px;">Pantau siswa binaan dalam satu dashboard</div>
+              <div style="font-size: 12px; color: rgba(234, 240, 255, 0.75);">Pantau status kehadiran, kepribadian, serta siswa yang memerlukan perhatian khusus secara real-time.</div>
+            </div>
+          </div>
+
+          <div style="background: rgba(255, 255, 255, 0.09); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px; padding: 14px 18px; display: flex; gap: 14px;">
+            <div style="color: #34D399; flex-shrink: 0;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+            <div>
+              <div style="font-weight: 600; font-size: 14px;">Catat pertemuan individu & kelompok tanpa duplikasi</div>
+              <div style="font-size: 12px; color: rgba(234, 240, 255, 0.75);">Dokumentasi sesi konseling tatap muka sekali catat, otomatis tersinkronisasi ke riwayat tiap peserta didik.</div>
+            </div>
+          </div>
+
+          <div style="background: rgba(255, 255, 255, 0.09); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px; padding: 14px 18px; display: flex; gap: 14px;">
+            <div style="color: #FBBF24; flex-shrink: 0;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
+            <div>
+              <div style="font-weight: 600; font-size: 14px;">Laporan resmi PDF & Excel siap cetak instan</div>
+              <div style="font-size: 12px; color: rgba(234, 240, 255, 0.75);">Format surat dan rekapitulasi resmi lengkap dengan kop sekolah dan lembar tanda tangan pengesahan.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Metric Footer Box -->
+      <div style="background: rgba(0, 0, 0, 0.25); border-radius: 14px; padding: 18px; margin-top: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.05em; color: #93C5FD; display: flex; align-items: center; gap: 6px;">
+            <span style="width: 8px; height: 8px; border-radius: 50%; background: #10B981; display: inline-block;"></span>
+            KILAS DATA AKTIF HARI INI
+          </div>
+          <span style="font-size: 11px; background: rgba(255,255,255,0.15); padding: 2px 8px; border-radius: 4px;">Tingkat Kelas VII - IX</span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
+          <div>
+            <div style="font-size: 11px; color: rgba(234, 240, 255, 0.7);">Siswa Binaan</div>
+            <div style="font-size: 20px; font-weight: 700;">648</div>
+            <div style="font-size: 10px; color: #34D399;">✓ 100% Terpetakan</div>
+          </div>
+          <div>
+            <div style="font-size: 11px; color: rgba(234, 240, 255, 0.7);">Konseling Pekan Ini</div>
+            <div style="font-size: 20px; font-weight: 700;">34</div>
+            <div style="font-size: 10px; color: #60A5FA;">↗ +8 Sesi Selesai</div>
+          </div>
+          <div>
+            <div style="font-size: 11px; color: rgba(234, 240, 255, 0.7);">Perhatian Khusus</div>
+            <div style="font-size: 20px; font-weight: 700; color: #F87171;">12</div>
+            <div style="font-size: 10px; color: #FCA5A5;">⚑ Tindak Lanjut Walas</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Login Card -->
+    <div style="flex: 0.9; background: #FFFFFF; display: flex; align-items: center; justify-content: center; padding: 40px 32px;">
+      <div style="max-width: 440px; width: 100%;">
+        <div style="margin-bottom: 24px;">
+          <span style="font-size: 11px; font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: 0.05em;">Kredensial Resmi GTK</span>
+          <h2 style="font-size: 26px; font-weight: 700; color: var(--text-primary); margin-top: 4px;">Masuk Portal Guru Wali</h2>
+          <p style="font-size: 14px; color: var(--text-secondary); margin-top: 4px;">Masukkan kredensial akun GTK Anda untuk melanjutkan.</p>
+        </div>
+
+        <div style="background: var(--surface-subtle); border-left: 4px solid var(--primary); padding: 12px 16px; border-radius: 6px; margin-bottom: 24px; font-size: 12px; color: var(--text-secondary); line-height: 1.4;">
+          <strong>Akses Internal Terdaftar:</strong> Khusus Administrator, Guru Wali, Wali Kelas, dan Kepala Sekolah UPT SMP Negeri 1 Suppa.
+        </div>
+
+        <form id="form-login" onsubmit="handleLoginSubmit(event)">
+          <div class="form-group">
+            <label class="form-label" for="login-username">Nama Pengguna / NIP</label>
+            <div style="position: relative;">
+              <input type="text" id="login-username" class="form-input" placeholder="Contoh: ahmad.dahlan atau 197805122005011004" required autocomplete="username">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <label class="form-label" for="login-password">Kata Sandi</label>
+              <a href="#" onclick="showForgotPasswordAlert(); return false;" style="font-size: 12px; color: var(--primary); text-decoration: none;">Lupa sandi?</a>
+            </div>
+            <div style="position: relative;">
+              <input type="password" id="login-password" class="form-input" placeholder="Masukkan kata sandi terdaftar" required autocomplete="current-password">
+              <button type="button" onclick="togglePasswordVisibility('login-password')" style="position: absolute; right: 10px; top: 10px; background: none; border: none; cursor: pointer; color: var(--text-muted);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); cursor: pointer;">
+              <input type="checkbox" id="login-remember" checked style="accent-color: var(--primary); width: 16px; height: 16px;">
+              Ingat sesi di peramban ini
+            </label>
+            <span class="badge badge-info" style="font-size: 10px;">T.A 2024/2025 Genap</span>
+          </div>
+
+          <button type="submit" id="btn-login-submit" class="btn btn-primary btn-lg" style="width: 100%;">
+            <span>Masuk ke Dashboard</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </button>
+        </form>
+
+        <!-- Quick Demo Switcher -->
+        <div style="margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--border);">
+          <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 10px;">Pilih Akun Cepat (Akses Otomatis):</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="quickFillLogin('ahmad.dahlan', 'guru123')">
+              👨‍🏫 Guru Wali (Ahmad)
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="quickFillLogin('nurmiati.spd', 'walas123')">
+              👩‍🏫 Wali Kelas (Nurmiati)
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="quickFillLogin('admin.kurikulum', 'admin123')">
+              ⚙️ Administrator
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="quickFillLogin('syamsuddin.kepsek', 'kepsek123')">
+              🏫 Kepala Sekolah
+            </button>
+          </div>
+        </div>
+
+        <div style="text-align: center; margin-top: 24px; font-size: 12px; color: var(--text-muted);">
+          Mengalami kendala login? Hubungi Operator Kurikulum SMPN 1 Suppa.<br>
+          <span style="font-size: 11px;">🔒 Sesi aman terenkripsi TLS • Google Apps Script Engine</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================
+       2. AUTHENTICATED APPLICATION SHELL
+       ======================================================== -->
+  <div id="app-shell" class="app-wrapper" style="display: none;">
+    <!-- Dark Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+        </div>
+        <div>
+          <div style="font-family: var(--font-heading); font-size: 16px; font-weight: 700; color: #FFFFFF; line-height: 1.1;">GuruWali</div>
+          <div style="font-size: 11px; color: rgba(234, 240, 255, 0.65);">UPT SMPN 1 Suppa</div>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <a class="nav-item active" data-view="dashboard" onclick="navigateTo('dashboard')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          <span>Dashboard</span>
+        </a>
+
+        <a class="nav-item" data-view="siswa" onclick="navigateTo('siswa')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <span>Data Siswa</span>
+        </a>
+
+        <a class="nav-item" data-view="kelas" onclick="navigateTo('kelas')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+          <span>Data Kelas</span>
+        </a>
+
+        <a class="nav-item" data-view="penugasan" onclick="navigateTo('penugasan')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+          <span>Penugasan</span>
+        </a>
+
+        <a class="nav-item" data-view="pertemuan" onclick="navigateTo('pertemuan')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <span>Pertemuan Murid</span>
+        </a>
+
+        <a class="nav-item" data-view="perkembangan" onclick="navigateTo('perkembangan')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          <span>Perkembangan Siswa</span>
+        </a>
+
+        <a class="nav-item" data-view="laporan" onclick="navigateTo('laporan')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          <span>Laporan</span>
+        </a>
+
+        <a class="nav-item" data-view="berkas" onclick="navigateTo('berkas')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          <span>Berkas / Dokumen</span>
+        </a>
+
+        <a class="nav-item" data-view="pengaturan" onclick="navigateTo('pengaturan')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <span>Pengaturan</span>
+        </a>
+      </nav>
+
+      <!-- Sidebar Footer -->
+      <div class="sidebar-footer">
+        <div style="background: rgba(255, 255, 255, 0.06); padding: 10px 12px; border-radius: 8px; display: flex; align-items: center; justify-content: space-between;">
+          <div>
+            <div style="font-size: 10px; color: rgba(234, 240, 255, 0.6); text-transform: uppercase;">TAHUN AJARAN</div>
+            <div style="font-size: 12px; font-weight: 600; color: #6EE7B7;">2024/2025 Genap</div>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6EE7B7" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        </div>
+
+        <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 4px;">
+          <div style="display: flex; align-items: center; gap: 10px; overflow: hidden;">
+            <div id="sidebar-avatar" style="width: 34px; height: 34px; border-radius: 50%; background: #1E4FD8; display: flex; align-items: center; justify-content: center; font-weight: bold; color: white; font-size: 13px; flex-shrink: 0;">AD</div>
+            <div style="overflow: hidden;">
+              <div id="sidebar-user-name" style="font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Drs. H. Ahmad Dahlan</div>
+              <div id="sidebar-user-role" style="font-size: 11px; color: rgba(234, 240, 255, 0.6);">Guru Wali</div>
+            </div>
+          </div>
+          <button type="button" onclick="handleLogout()" title="Keluar" style="background: none; border: none; color: rgba(234, 240, 255, 0.6); cursor: pointer; padding: 4px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Global Header -->
+      <header class="global-header">
+        <div class="breadcrumb">
+          <div style="width: 28px; height: 28px; background: var(--primary-container); border-radius: 6px; display: flex; align-items: center; justify-content: center; color: var(--primary);">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+          </div>
+          <span style="font-weight: 500;">Portal Guru Wali</span>
+          <span>›</span>
+          <span id="breadcrumb-current" style="color: var(--text-primary); font-weight: 600;">Dashboard & Monitoring</span>
+        </div>
+
+        <div class="header-search">
+          <svg style="position: absolute; left: 12px; top: 11px; color: var(--text-muted);" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="global-search-input" placeholder="Cari NISN, nama siswa, atau kelas... (⌘K)" onkeyup="handleGlobalSearch(event)">
+        </div>
+
+        <div class="header-actions">
+          <!-- Notification Bell -->
+          <div style="position: relative;">
+            <button type="button" onclick="toggleNotificationDrawer()" class="btn btn-ghost" style="padding: 8px; border-radius: 50%; position: relative;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+              <span id="notif-badge-count" style="position: absolute; top: 4px; right: 4px; background: var(--status-critical); color: white; border-radius: 50%; width: 16px; height: 16px; font-size: 10px; font-weight: bold; display: flex; align-items: center; justify-content: center;">3</span>
+            </button>
+          </div>
+
+          <!-- User Profile Dropdown Pill -->
+          <div style="display: flex; align-items: center; gap: 10px; padding: 4px 10px; background: var(--surface-subtle); border-radius: var(--radius-full); border: 1px solid var(--border);">
+            <div id="header-avatar" style="width: 32px; height: 32px; border-radius: 50%; background: var(--primary); color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px;">AD</div>
+            <div style="line-height: 1.2;">
+              <div id="header-user-name" style="font-size: 13px; font-weight: 600;">Drs. H. Ahmad Dahlan, M.Pd</div>
+              <div id="header-user-nip" style="font-size: 11px; color: var(--text-secondary);">NIP 197805122005011004</div>
+            </div>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+        </div>
+      </header>
+
+      <!-- Dynamic Views Container -->
+      <div id="view-container" class="page-container">
+        <!-- Content dynamically rendered by Javascript.html -->
+      </div>
+    </main>
+  </div>
+
+  <!-- ========================================================
+       3. MODALS CONTAINER (SESUAI PRD & STITCH)
+       ======================================================== -->
+  <div id="modal-container"></div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" style="position: fixed; bottom: 24px; right: 24px; z-index: 200; display: flex; flex-direction: column; gap: 8px;"></div>
+
+  <!-- Embedded Client-Side JavaScript Logic -->
+  <?!= include('Javascript'); ?>
+</body>
+</html>

@@ -1,0 +1,93 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  *, ::before, ::after {
+    font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+  }
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+html.dark body {
+  background-color: #0b1120;
+  color: #f1f5f9;
+}
+
+/* Dark mode surface & border adaptations */
+html.dark .bg-white:not(.print-only):not([data-theme-keep="white"]) {
+  background-color: #0f172a;
+  color: #f1f5f9;
+}
+
+html.dark .bg-gray-50:not([data-theme-keep="light"]) {
+  background-color: #1e293b;
+  color: #e2e8f0;
+}
+
+html.dark .border-gray-200,
+html.dark .border-gray-200\/90,
+html.dark .border-gray-200\/80,
+html.dark .border-gray-200\/70,
+html.dark .border-gray-300,
+html.dark .border-gray-100 {
+  border-color: #334155;
+}
+
+html.dark .text-gray-900 {
+  color: #f8fafc;
+}
+
+html.dark .text-gray-800 {
+  color: #f1f5f9;
+}
+
+html.dark .text-gray-700 {
+  color: #cbd5e1;
+}
+
+html.dark .text-gray-600 {
+  color: #94a3b8;
+}
+
+html.dark .text-gray-500 {
+  color: #94a3b8;
+}
+
+html.dark input:not([type="checkbox"]):not([type="radio"]),
+html.dark select,
+html.dark textarea {
+  background-color: #1e293b;
+  color: #f8fafc;
+  border-color: #334155;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 15mm 15mm 15mm 15mm;
+  }
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  .print-card {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
